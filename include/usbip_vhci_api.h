@@ -54,6 +54,7 @@ DEFINE_GUID(USBIP_NOTIFY_DEVICE_ARRIVAL_EVENT,
 #define IOCTL_USBIP_VHCI_UNPLUG_HARDWARE	USBIP_VHCI_IOCTL(0x1)
 #define IOCTL_USBIP_VHCI_EJECT_HARDWARE		USBIP_VHCI_IOCTL(0x2)
 #define IOCTL_USBIP_VHCI_GET_PORTS_STATUS	USBIP_VHCI_IOCTL(0x3)
+#define IOCTL_USBIP_VHCI_GET_IMPORTED_DEVICES	USBIP_VHCI_IOCTL(0x4)
 
 #define MAX_VHCI_INSTANCE_ID	16
 
@@ -77,21 +78,38 @@ typedef struct _ioctl_usbip_vhci_plugin
 	wchar_t		winstid[MAX_VHCI_INSTANCE_ID + 1];
 } ioctl_usbip_vhci_plugin;
 
+typedef struct _vhci_pluginfo
+{
+	/* vhci_pluginfo_t structure size */
+	unsigned long	size;
+	unsigned int	devid;
+	signed char	port;
+	wchar_t		winstid[MAX_VHCI_INSTANCE_ID + 1];
+	unsigned char	dscr_dev[18];
+	/* variable length. It's a full-length configuration descriptor */
+	unsigned char	dscr_conf[9];
+} vhci_pluginfo_t, *pvhci_pluginfo_t;
+
 typedef struct _ioctl_usbip_vhci_get_ports_status
 {
-	union {
-		signed char max_used_port; /* then it can not be bigger than 127 */
-		unsigned char port_status[128];
-		/* 128 bytes */
-	} u;
+	/* usbip-win assumes max port is 127 */
+	unsigned char n_used_ports;
+	unsigned char port_status[127];
 } ioctl_usbip_vhci_get_ports_status;
 
 typedef struct _ioctl_usbip_vhci_unplug
 {
 	signed char addr;
 	char unused[3];
+} ioctl_usbip_vhci_unplug, *pvhci_unpluginfo_t;
 
-} ioctl_usbip_vhci_unplug;
+typedef struct usbip_imported_device {
+	char		port;
+	enum usbip_device_status	status;
+	unsigned short	vendor;
+	unsigned short	product;
+	unsigned char	speed;
+} ioctl_usbip_vhci_imported_dev, *pioctl_usbip_vhci_imported_dev_t;
 
 typedef struct _USBIP_VHCI_EJECT_HARDWARE
 {

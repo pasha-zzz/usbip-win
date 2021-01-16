@@ -190,7 +190,8 @@ PAGEABLE NTSTATUS
 vhub_get_ports_status(pvhub_dev_t vhub, ioctl_usbip_vhci_get_ports_status *st)
 {
 	pvpdo_dev_t	vpdo;
-	PLIST_ENTRY		entry;
+	PLIST_ENTRY	entry;
+	unsigned char	n_used_ports = 0;
 
 	PAGED_CODE();
 
@@ -205,10 +206,53 @@ vhub_get_ports_status(pvhub_dev_t vhub, ioctl_usbip_vhci_get_ports_status *st)
 			DBGE(DBG_VHUB, "strange error");
 			continue;
 		}
-		if (st->u.max_used_port < (char)vpdo->port)
-			st->u.max_used_port = (char)vpdo->port;
-		st->u.port_status[vpdo->port] = 1;
+		n_used_ports++;
+		st->port_status[vpdo->port - 1] = 1;
 	}
 	ExReleaseFastMutex(&vhub->Mutex);
+
+	st->n_used_ports = n_used_ports;
+	return STATUS_SUCCESS;
+}
+
+PAGEABLE NTSTATUS
+vhub_get_imported_devs(pvhub_dev_t vhub, pioctl_usbip_vhci_imported_dev_t idevs, PULONG poutlen)
+{
+	pioctl_usbip_vhci_imported_dev_t	idev = idevs;
+	ULONG	n_idevs_max;
+	unsigned char	n_used_ports = 0;
+	PLIST_ENTRY	entry;
+
+	PAGED_CODE();
+
+	n_idevs_max = (ULONG)(*poutlen / sizeof(ioctl_usbip_vhci_imported_dev));
+	if (n_idevs_max == 0)
+		return STATUS_INVALID_PARAMETER;
+
+	DBGI(DBG_VHUB, "get imported devices\n");
+
+	ExAcquireFastMutex(&vhub->Mutex);
+
+	for (entry = vhub->head_vpdo.Flink; entry != &vhub->head_vpdo; entry = entry->Flink) {
+		pvpdo_dev_t	vpdo;
+
+		if (n_used_ports == n_idevs_max - 1)
+			break;
+		vpdo = CONTAINING_RECORD(entry, vpdo_dev_t, Link);
+
+		idev->port = (CHAR)(vpdo->port);
+		idev->status = 2; /* SDEV_ST_USED */;
+		idev->vendor = vpdo->vendor;
+		idev->product = vpdo->product;
+		idev->speed = vpdo->speed;
+		idev++;
+
+		n_used_ports++;
+	}
+
+	ExReleaseFastMutex(&vhub->Mutex);
+
+	idev->port = 0xff; /* end of mark */
+
 	return STATUS_SUCCESS;
 }
